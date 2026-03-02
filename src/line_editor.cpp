@@ -1,5 +1,6 @@
 #include "opentui/line_editor.hpp"
 
+#include <algorithm>
 #include <cctype>
 #include <iostream>
 
@@ -14,8 +15,8 @@
 namespace opentui {
 namespace {
 
-void redraw(std::string_view prompt, std::string_view buffer,
-            std::string_view autosuggestion = {}) {
+void redraw(std::string_view prompt, std::string_view buffer, std::string_view autosuggestion = {},
+            std::string_view completion_line = {}) {
   std::cout << '\r' << prompt << buffer;
 
   if (!autosuggestion.empty() && autosuggestion.size() > buffer.size() &&
@@ -25,15 +26,45 @@ void redraw(std::string_view prompt, std::string_view buffer,
     std::cout << "\033[" << suffix.size() << "D";
   }
 
-  std::cout << "\033[K" << std::flush;
+  std::cout << "\033[K";
+  std::cout << "\033[s\n" << completion_line << "\033[K\033[u";
+  std::cout << std::flush;
 }
 
-void print_candidates(const std::vector<std::string>& candidates) {
-  std::cout << '\n';
-  for (const auto& candidate : candidates) {
-    std::cout << candidate << "  ";
+[[nodiscard]] std::string normalize_candidate_for_display(std::string candidate) {
+  while (!candidate.empty() && std::isspace(static_cast<unsigned char>(candidate.back())) != 0) {
+    candidate.pop_back();
   }
-  std::cout << '\n';
+
+  constexpr std::size_t kMaxCandidateLength = 32;
+  if (candidate.size() > kMaxCandidateLength) {
+    candidate = candidate.substr(0, kMaxCandidateLength - 3U) + "...";
+  }
+
+  return candidate;
+}
+
+[[nodiscard]] std::string format_completion_line(const std::vector<std::string>& candidates) {
+  if (candidates.empty()) {
+    return {};
+  }
+
+  constexpr std::size_t kMaxShownCandidates = 8;
+  std::string line = "completions: ";
+
+  const std::size_t limit = std::min(kMaxShownCandidates, candidates.size());
+  for (std::size_t index = 0; index < limit; ++index) {
+    if (index != 0U) {
+      line += "  ";
+    }
+    line += normalize_candidate_for_display(candidates[index]);
+  }
+
+  if (candidates.size() > kMaxShownCandidates) {
+    line += "  ...";
+  }
+
+  return line;
 }
 
 [[nodiscard]] std::string longest_common_prefix(const std::vector<std::string>& values) {
@@ -61,12 +92,11 @@ void print_candidates(const std::vector<std::string>& candidates) {
 
 [[nodiscard]] std::string
 autosuggestion_for(const std::string_view buffer, const std::vector<std::string>& history,
-                   const LineEditor::CompletionProvider& completion_provider) {
+                   const std::vector<std::string>& completion_candidates) {
   if (buffer.empty()) {
     return {};
   }
 
-  const auto completion_candidates = completion_provider(buffer);
   for (const auto& candidate : completion_candidates) {
     if (candidate.size() > buffer.size() && std::string_view{candidate}.starts_with(buffer)) {
       return candidate;
@@ -153,12 +183,21 @@ std::optional<std::string> LineEditor::read_line(std::string_view prompt,
   std::string draft_buffer;
   std::size_t history_index = history_.size();
 
-  const auto redraw_with_autosuggestion = [this, &buffer, &completion_provider, prompt]() {
-    redraw(prompt, buffer, autosuggestion_for(buffer, history_, completion_provider));
+  const auto redraw_with_suggestions = [this, &buffer, &completion_provider, prompt]() {
+    if (buffer.empty()) {
+      redraw(prompt, buffer);
+      return;
+    }
+
+    const auto completion_candidates = completion_provider(buffer);
+    const std::string autosuggestion = autosuggestion_for(buffer, history_, completion_candidates);
+    const std::string completion_line = format_completion_line(completion_candidates);
+
+    redraw(prompt, buffer, autosuggestion, completion_line);
   };
 
   const auto move_history_up = [this, &buffer, &draft_buffer, &history_index,
-                                &redraw_with_autosuggestion]() {
+                                &redraw_with_suggestions]() {
     if (history_.empty()) {
       return false;
     }
@@ -173,12 +212,12 @@ std::optional<std::string> LineEditor::read_line(std::string_view prompt,
 
     --history_index;
     buffer = history_[history_index];
-    redraw_with_autosuggestion();
+    redraw_with_suggestions();
     return true;
   };
 
   const auto move_history_down = [this, &buffer, &draft_buffer, &history_index,
-                                  &redraw_with_autosuggestion]() {
+                                  &redraw_with_suggestions]() {
     if (history_.empty() || history_index == history_.size()) {
       return false;
     }
@@ -190,13 +229,15 @@ std::optional<std::string> LineEditor::read_line(std::string_view prompt,
       buffer = history_[history_index];
     }
 
-    redraw_with_autosuggestion();
+    redraw_with_suggestions();
     return true;
   };
 
   const auto accept_autosuggestion = [this, &buffer, &history_index, &draft_buffer,
-                                      &completion_provider, &redraw_with_autosuggestion]() {
-    const std::string suggestion = autosuggestion_for(buffer, history_, completion_provider);
+                                      &completion_provider, &redraw_with_suggestions]() {
+    const auto completion_candidates = completion_provider(buffer);
+    const std::string suggestion = autosuggestion_for(buffer, history_, completion_candidates);
+
     if (suggestion.empty() || suggestion.size() <= buffer.size() ||
         !std::string_view{suggestion}.starts_with(buffer)) {
       return false;
@@ -205,11 +246,12 @@ std::optional<std::string> LineEditor::read_line(std::string_view prompt,
     buffer = suggestion;
     history_index = history_.size();
     draft_buffer = buffer;
-    redraw_with_autosuggestion();
+    redraw_with_suggestions();
     return true;
   };
 
-  const auto finalize_line = [this, &buffer, &push_history]() {
+  const auto finalize_line = [this, &buffer, &push_history, prompt]() {
+    redraw(prompt, buffer);
     std::cout << '\n';
     push_history(buffer);
     return std::optional<std::string>{buffer};
@@ -219,6 +261,7 @@ std::optional<std::string> LineEditor::read_line(std::string_view prompt,
   while (true) {
     const int key = _getch();
     if (key == 3) {
+      redraw(prompt, buffer);
       std::cout << '\n';
       return std::nullopt;
     }
@@ -232,7 +275,7 @@ std::optional<std::string> LineEditor::read_line(std::string_view prompt,
         buffer.pop_back();
         history_index = history_.size();
         draft_buffer = buffer;
-        redraw_with_autosuggestion();
+        redraw_with_suggestions();
       }
       continue;
     }
@@ -249,7 +292,7 @@ std::optional<std::string> LineEditor::read_line(std::string_view prompt,
         buffer = common_prefix;
         history_index = history_.size();
         draft_buffer = buffer;
-        redraw_with_autosuggestion();
+        redraw_with_suggestions();
         continue;
       }
 
@@ -257,12 +300,11 @@ std::optional<std::string> LineEditor::read_line(std::string_view prompt,
         buffer = candidates.front();
         history_index = history_.size();
         draft_buffer = buffer;
-        redraw_with_autosuggestion();
+        redraw_with_suggestions();
         continue;
       }
 
-      print_candidates(candidates);
-      redraw_with_autosuggestion();
+      redraw_with_suggestions();
       continue;
     }
 
@@ -296,7 +338,7 @@ std::optional<std::string> LineEditor::read_line(std::string_view prompt,
       buffer.push_back(static_cast<char>(key));
       history_index = history_.size();
       draft_buffer = buffer;
-      redraw_with_autosuggestion();
+      redraw_with_suggestions();
     }
   }
 #else
@@ -317,6 +359,7 @@ std::optional<std::string> LineEditor::read_line(std::string_view prompt,
     }
 
     if (key == 4 && buffer.empty()) {
+      redraw(prompt, buffer);
       std::cout << '\n';
       return std::nullopt;
     }
@@ -330,7 +373,7 @@ std::optional<std::string> LineEditor::read_line(std::string_view prompt,
         buffer.pop_back();
         history_index = history_.size();
         draft_buffer = buffer;
-        redraw_with_autosuggestion();
+        redraw_with_suggestions();
       }
       continue;
     }
@@ -347,7 +390,7 @@ std::optional<std::string> LineEditor::read_line(std::string_view prompt,
         buffer = common_prefix;
         history_index = history_.size();
         draft_buffer = buffer;
-        redraw_with_autosuggestion();
+        redraw_with_suggestions();
         continue;
       }
 
@@ -355,12 +398,11 @@ std::optional<std::string> LineEditor::read_line(std::string_view prompt,
         buffer = candidates.front();
         history_index = history_.size();
         draft_buffer = buffer;
-        redraw_with_autosuggestion();
+        redraw_with_suggestions();
         continue;
       }
 
-      print_candidates(candidates);
-      redraw_with_autosuggestion();
+      redraw_with_suggestions();
       continue;
     }
 
@@ -403,7 +445,7 @@ std::optional<std::string> LineEditor::read_line(std::string_view prompt,
       buffer.push_back(key);
       history_index = history_.size();
       draft_buffer = buffer;
-      redraw_with_autosuggestion();
+      redraw_with_suggestions();
     }
   }
 #endif

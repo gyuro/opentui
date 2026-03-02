@@ -105,8 +105,11 @@ std::vector<std::string> CommandRegistry::complete(std::string_view buffer) cons
   }
 
   if (tokens.size() == 1U && !trailing_space) {
+    const std::string_view partial = tokens.front();
     for (const auto& [name, _] : commands_) {
-      if (std::string_view{name}.starts_with(tokens.front())) {
+      const std::string_view command_name{name};
+      if (command_name.starts_with(partial) ||
+          (command_name.starts_with('/') && command_name.substr(1).starts_with(partial))) {
         completions.push_back(name + " ");
       }
     }
@@ -184,8 +187,11 @@ bool CommandRegistry::execute_line(std::string_view line, CommandContext& contex
     context.console.println_color("Unknown command: " + tokens.front(), Color::BrightRed);
 
     std::vector<std::string> suggestions;
+    const std::string_view partial = tokens.front();
     for (const auto& [name, _] : commands_) {
-      if (std::string_view{name}.starts_with(tokens.front())) {
+      const std::string_view command_name{name};
+      if (command_name.starts_with(partial) ||
+          (command_name.starts_with('/') && command_name.substr(1).starts_with(partial))) {
         suggestions.push_back(name);
       }
     }

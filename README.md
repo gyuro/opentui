@@ -9,6 +9,7 @@
 - Simple command registration API with argument handlers.
 - Interactive tab completion for commands and custom sub-arguments (including common-prefix expansion).
 - Inline autosuggestions (dim ghost text from completion/history), accepted with Right Arrow.
+- Live completion list on the bottom line while typing (e.g., typing `f` lists all matching commands).
 - Interactive command history navigation (`↑`/`↓`) in TTY mode.
 - Fine-grained colored output (ANSI, with Windows virtual terminal support).
 - Signal-aware run loop for clean termination (`SIGINT`, `SIGTERM`, `SIGHUP` on POSIX).
