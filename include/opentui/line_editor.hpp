@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <functional>
 #include <optional>
 #include <string>
@@ -17,6 +18,9 @@ public:
 
 private:
   [[nodiscard]] static bool is_interactive();
+
+  static constexpr std::size_t kMaxHistoryEntries = 256;
+  std::vector<std::string> history_;
 };
 
 } // namespace opentui

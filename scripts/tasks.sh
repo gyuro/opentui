@@ -15,8 +15,9 @@ Tasks collected from README.md:
   build        Run CMake configure and build.
   lint-format  Run clang-format dry-run check.
   lint-tidy    Run clang-tidy (adds macOS SDK args when available).
-  run-example  Run the example debugger binary.
-  all          Run: build, lint-format, lint-tidy.
+  run-example         Run the example debugger binary.
+  run-claude-example  Run the Claude Code-style demo binary.
+  all                 Run: build, lint-format, lint-tidy.
 
 Examples:
   ./${SCRIPT_NAME} list
@@ -45,12 +46,15 @@ task_list() {
 [lint-tidy]
   macOS:
     SDKROOT=$(xcrun --show-sdk-path)
-    clang-tidy -p build src/*.cpp examples/debugger/main.cpp --extra-arg=-isysroot --extra-arg=$SDKROOT --quiet
+    clang-tidy -p build src/*.cpp examples/debugger/main.cpp examples/claude_code/main.cpp --extra-arg=-isysroot --extra-arg=$SDKROOT --quiet
   Linux:
-    clang-tidy -p build src/*.cpp examples/debugger/main.cpp --quiet
+    clang-tidy -p build src/*.cpp examples/debugger/main.cpp examples/claude_code/main.cpp --quiet
 
 [run-example]
   ./build/open_tui_example
+
+[run-claude-example]
+  ./build/open_tui_claude_style_example
 EOF
 }
 
@@ -73,7 +77,7 @@ task_lint_tidy() {
   cmake -S . -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON >/dev/null
 
   local -a tidy_args
-  tidy_args=(-p build src/*.cpp examples/debugger/main.cpp --quiet)
+  tidy_args=(-p build src/*.cpp examples/debugger/main.cpp examples/claude_code/main.cpp --quiet)
 
   if command -v xcrun >/dev/null 2>&1; then
     local sdkroot
@@ -90,6 +94,14 @@ task_run_example() {
     exit 1
   fi
   ./build/open_tui_example
+}
+
+task_run_claude_example() {
+  if [[ ! -x ./build/open_tui_claude_style_example ]]; then
+    echo "error: ./build/open_tui_claude_style_example not found. Run '${SCRIPT_NAME} build' first." >&2
+    exit 1
+  fi
+  ./build/open_tui_claude_style_example
 }
 
 task_all() {
@@ -116,6 +128,9 @@ main() {
       ;;
     run-example)
       task_run_example
+      ;;
+    run-claude-example)
+      task_run_claude_example
       ;;
     all)
       task_all

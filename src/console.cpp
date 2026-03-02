@@ -73,6 +73,18 @@ void Console::flush() {
   std::cout << std::flush;
 }
 
+void Console::clear_screen() {
+  if (ansi_enabled_) {
+    std::cout << "\033[2J\033[H";
+  } else {
+    constexpr int kFallbackNewlines = 48;
+    for (int i = 0; i < kFallbackNewlines; ++i) {
+      std::cout << '\n';
+    }
+  }
+  flush();
+}
+
 bool Console::enable_virtual_terminal() {
 #if defined(_WIN32)
   const HANDLE output = GetStdHandle(STD_OUTPUT_HANDLE);

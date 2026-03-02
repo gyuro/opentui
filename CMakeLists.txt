@@ -7,6 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(OPEN_TUI_BUILD_EXAMPLE "Build example debugger executable" ON)
+option(OPEN_TUI_BUILD_CLAUDE_STYLE_EXAMPLE "Build Claude Code-style demo executable" ON)
 
 add_library(open_tui_cpp
   src/command_registry.cpp
@@ -37,4 +38,9 @@ endif()
 if(OPEN_TUI_BUILD_EXAMPLE)
   add_executable(open_tui_example examples/debugger/main.cpp)
   target_link_libraries(open_tui_example PRIVATE open_tui_cpp::open_tui_cpp)
+endif()
+
+if(OPEN_TUI_BUILD_CLAUDE_STYLE_EXAMPLE)
+  add_executable(open_tui_claude_style_example examples/claude_code/main.cpp)
+  target_link_libraries(open_tui_claude_style_example PRIVATE open_tui_cpp::open_tui_cpp)
 endif()

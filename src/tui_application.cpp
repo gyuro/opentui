@@ -79,15 +79,43 @@ void TuiApplication::register_builtin_commands() {
     }
   };
 
+  const auto help_handler = [this](const Args& args, CommandContext& context) {
+    static_cast<void>(args);
+    static_cast<void>(context);
+    console_.println(command_registry_.help_text());
+  };
+
   register_builtin(Command{
       .name = "help",
       .description = "Show all available commands.",
-      .handler =
-          [this](const Args& args, CommandContext& context) {
-            static_cast<void>(args);
-            static_cast<void>(context);
-            console_.println(command_registry_.help_text());
-          },
+      .handler = help_handler,
+      .completer = no_completion,
+  });
+
+  register_builtin(Command{
+      .name = "/help",
+      .description = "Slash alias for help.",
+      .handler = help_handler,
+      .completer = no_completion,
+  });
+
+  const auto clear_handler = [this](const Args& args, CommandContext& context) {
+    static_cast<void>(args);
+    static_cast<void>(context);
+    console_.clear_screen();
+  };
+
+  register_builtin(Command{
+      .name = "clear",
+      .description = "Clear the screen.",
+      .handler = clear_handler,
+      .completer = no_completion,
+  });
+
+  register_builtin(Command{
+      .name = "/clear",
+      .description = "Slash alias for clear.",
+      .handler = clear_handler,
       .completer = no_completion,
   });
 
@@ -106,6 +134,20 @@ void TuiApplication::register_builtin_commands() {
   register_builtin(Command{
       .name = "quit",
       .description = "Alias for exit.",
+      .handler = exit_handler,
+      .completer = no_completion,
+  });
+
+  register_builtin(Command{
+      .name = "/exit",
+      .description = "Slash alias for exit.",
+      .handler = exit_handler,
+      .completer = no_completion,
+  });
+
+  register_builtin(Command{
+      .name = "/quit",
+      .description = "Slash alias for quit.",
       .handler = exit_handler,
       .completer = no_completion,
   });

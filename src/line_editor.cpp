@@ -35,7 +35,7 @@ public:
     }
 
     termios raw_state = original_state_;
-    raw_state.c_lflag &= static_cast<unsigned long>(~(ICANON | ECHO));
+    raw_state.c_lflag &= static_cast<tcflag_t>(~static_cast<tcflag_t>(ICANON | ECHO));
     raw_state.c_cc[VMIN] = 1;
     raw_state.c_cc[VTIME] = 0;
 
@@ -68,16 +68,75 @@ private:
 
 std::optional<std::string> LineEditor::read_line(std::string_view prompt,
                                                  const CompletionProvider& completion_provider) {
+  const auto push_history = [this](const std::string& line) {
+    if (line.empty()) {
+      return;
+    }
+
+    if (!history_.empty() && history_.back() == line) {
+      return;
+    }
+
+    history_.push_back(line);
+    if (history_.size() > kMaxHistoryEntries) {
+      history_.erase(history_.begin());
+    }
+  };
+
   if (!is_interactive()) {
     std::string line;
     if (!std::getline(std::cin, line)) {
       return std::nullopt;
     }
+    push_history(line);
     return line;
   }
 
   std::cout << prompt << std::flush;
   std::string buffer;
+  std::string draft_buffer;
+  std::size_t history_index = history_.size();
+
+  const auto move_history_up = [this, &buffer, &draft_buffer, &history_index, prompt]() {
+    if (history_.empty()) {
+      return false;
+    }
+
+    if (history_index == history_.size()) {
+      draft_buffer = buffer;
+    }
+
+    if (history_index == 0U) {
+      return false;
+    }
+
+    --history_index;
+    buffer = history_[history_index];
+    redraw(prompt, buffer);
+    return true;
+  };
+
+  const auto move_history_down = [this, &buffer, &draft_buffer, &history_index, prompt]() {
+    if (history_.empty() || history_index == history_.size()) {
+      return false;
+    }
+
+    ++history_index;
+    if (history_index == history_.size()) {
+      buffer = draft_buffer;
+    } else {
+      buffer = history_[history_index];
+    }
+
+    redraw(prompt, buffer);
+    return true;
+  };
+
+  const auto finalize_line = [this, &buffer, &push_history]() {
+    std::cout << '\n';
+    push_history(buffer);
+    return std::optional<std::string>{buffer};
+  };
 
 #if defined(_WIN32)
   while (true) {
@@ -88,13 +147,14 @@ std::optional<std::string> LineEditor::read_line(std::string_view prompt,
     }
 
     if (key == '\r' || key == '\n') {
-      std::cout << '\n';
-      return buffer;
+      return finalize_line();
     }
 
     if (key == '\b' || key == 127) {
       if (!buffer.empty()) {
         buffer.pop_back();
+        history_index = history_.size();
+        draft_buffer = buffer;
         redraw(prompt, buffer);
       }
       continue;
@@ -109,6 +169,8 @@ std::optional<std::string> LineEditor::read_line(std::string_view prompt,
 
       if (candidates.size() == 1U) {
         buffer = candidates.front();
+        history_index = history_.size();
+        draft_buffer = buffer;
         redraw(prompt, buffer);
         continue;
       }
@@ -119,13 +181,27 @@ std::optional<std::string> LineEditor::read_line(std::string_view prompt,
     }
 
     if (key == 0 || key == 224) {
-      const int ignored = _getch();
-      static_cast<void>(ignored);
+      const int special_key = _getch();
+      if (special_key == 72) {
+        if (!move_history_up()) {
+          std::cout << '\a' << std::flush;
+        }
+        continue;
+      }
+
+      if (special_key == 80) {
+        if (!move_history_down()) {
+          std::cout << '\a' << std::flush;
+        }
+        continue;
+      }
       continue;
     }
 
     if (std::isprint(key) != 0) {
       buffer.push_back(static_cast<char>(key));
+      history_index = history_.size();
+      draft_buffer = buffer;
       redraw(prompt, buffer);
     }
   }
@@ -136,6 +212,7 @@ std::optional<std::string> LineEditor::read_line(std::string_view prompt,
     if (!std::getline(std::cin, line)) {
       return std::nullopt;
     }
+    push_history(line);
     return line;
   }
 
@@ -151,13 +228,14 @@ std::optional<std::string> LineEditor::read_line(std::string_view prompt,
     }
 
     if (key == '\r' || key == '\n') {
-      std::cout << '\n';
-      return buffer;
+      return finalize_line();
     }
 
     if (key == '\b' || key == 127) {
       if (!buffer.empty()) {
         buffer.pop_back();
+        history_index = history_.size();
+        draft_buffer = buffer;
         redraw(prompt, buffer);
       }
       continue;
@@ -172,6 +250,8 @@ std::optional<std::string> LineEditor::read_line(std::string_view prompt,
 
       if (candidates.size() == 1U) {
         buffer = candidates.front();
+        history_index = history_.size();
+        draft_buffer = buffer;
         redraw(prompt, buffer);
         continue;
       }
@@ -181,8 +261,38 @@ std::optional<std::string> LineEditor::read_line(std::string_view prompt,
       continue;
     }
 
+    if (key == '\033') {
+      char next = '\0';
+      if (read(STDIN_FILENO, &next, 1) != 1 || next != '[') {
+        continue;
+      }
+
+      char arrow = '\0';
+      if (read(STDIN_FILENO, &arrow, 1) != 1) {
+        continue;
+      }
+
+      if (arrow == 'A') {
+        if (!move_history_up()) {
+          std::cout << '\a' << std::flush;
+        }
+        continue;
+      }
+
+      if (arrow == 'B') {
+        if (!move_history_down()) {
+          std::cout << '\a' << std::flush;
+        }
+        continue;
+      }
+
+      continue;
+    }
+
     if (std::isprint(static_cast<unsigned char>(key)) != 0) {
       buffer.push_back(key);
+      history_index = history_.size();
+      draft_buffer = buffer;
       redraw(prompt, buffer);
     }
   }

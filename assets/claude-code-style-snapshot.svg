@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="760" viewBox="0 0 1280 760">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="#121826" />
+      <stop offset="100%" stop-color="#0d1117" />
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="1280" height="760" fill="url(#bg)" />
+  <rect x="30" y="28" width="1220" height="704" rx="14" fill="#0b1020" stroke="#2f3b52" stroke-width="2" />
+  <rect x="30" y="28" width="1220" height="40" rx="14" fill="#121a2e" />
+
+  <circle cx="56" cy="48" r="7" fill="#ff5f56" />
+  <circle cx="78" cy="48" r="7" fill="#ffbd2e" />
+  <circle cx="100" cy="48" r="7" fill="#27c93f" />
+
+  <text x="128" y="54" fill="#9fb2d5" font-size="16" font-family="JetBrains Mono, SFMono-Regular, Menlo, monospace">
+    open_tui_claude_style_example
+  </text>
+
+  <text x="60" y="108" fill="#8ea5cc" font-size="17" font-family="JetBrains Mono, SFMono-Regular, Menlo, monospace">
++------------------------------------------------------------------------------------------+
+  </text>
+  <text x="60" y="138" fill="#67d4ff" font-size="17" font-family="JetBrains Mono, SFMono-Regular, Menlo, monospace">
+| Claude Code-style TUI | model=claude-sonnet-4.5 | theme=dark | focus=code edits         |
+  </text>
+  <text x="60" y="168" fill="#8ea5cc" font-size="17" font-family="JetBrains Mono, SFMono-Regular, Menlo, monospace">
+| context_files=2 | token_estimate=214 | slash commands + history navigation enabled      |
+  </text>
+  <text x="60" y="198" fill="#8ea5cc" font-size="17" font-family="JetBrains Mono, SFMono-Regular, Menlo, monospace">
+| workflow: /plan &lt;task&gt; -&gt; run &lt;cmd&gt; -&gt; ask &lt;message&gt; -&gt; /status (clear: /clear) |
+  </text>
+  <text x="60" y="228" fill="#8ea5cc" font-size="17" font-family="JetBrains Mono, SFMono-Regular, Menlo, monospace">
++------------------------------------------------------------------------------------------+
+  </text>
+
+  <text x="60" y="274" fill="#80d7ff" font-size="18" font-family="JetBrains Mono, SFMono-Regular, Menlo, monospace">
+claude&gt; /attach include/opentui/tui_application.hpp
+  </text>
+  <text x="60" y="304" fill="#7ce38b" font-size="18" font-family="JetBrains Mono, SFMono-Regular, Menlo, monospace">
+Attached: include/opentui/tui_application.hpp
+  </text>
+
+  <text x="60" y="350" fill="#80d7ff" font-size="18" font-family="JetBrains Mono, SFMono-Regular, Menlo, monospace">
+claude&gt; /plan add command history navigation and slash aliases
+  </text>
+  <text x="60" y="380" fill="#d997ff" font-size="18" font-family="JetBrains Mono, SFMono-Regular, Menlo, monospace">
+plan &gt; add command history navigation and slash aliases
+  </text>
+  <text x="90" y="410" fill="#c8d3e8" font-size="18" font-family="JetBrains Mono, SFMono-Regular, Menlo, monospace">
+1) Read current files and constraints.
+  </text>
+  <text x="90" y="438" fill="#c8d3e8" font-size="18" font-family="JetBrains Mono, SFMono-Regular, Menlo, monospace">
+2) Apply smallest safe edits with quick verification.
+  </text>
+  <text x="90" y="466" fill="#c8d3e8" font-size="18" font-family="JetBrains Mono, SFMono-Regular, Menlo, monospace">
+3) Summarize changes + next optional refinements.
+  </text>
+
+  <text x="60" y="518" fill="#80d7ff" font-size="18" font-family="JetBrains Mono, SFMono-Regular, Menlo, monospace">
+claude&gt; ask can you mimic claude code style interactions?
+  </text>
+  <text x="60" y="548" fill="#67d4ff" font-size="18" font-family="JetBrains Mono, SFMono-Regular, Menlo, monospace">
+assistant &gt;
+  </text>
+  <text x="90" y="578" fill="#c8d3e8" font-size="18" font-family="JetBrains Mono, SFMono-Regular, Menlo, monospace">
+- I can implement this with a small, testable patch.
+  </text>
+  <text x="90" y="606" fill="#c8d3e8" font-size="18" font-family="JetBrains Mono, SFMono-Regular, Menlo, monospace">
+- I will keep the scope tight and preserve existing behavior.
+  </text>
+  <text x="90" y="634" fill="#c8d3e8" font-size="18" font-family="JetBrains Mono, SFMono-Regular, Menlo, monospace">
+- After patching, I will run a focused verification step.
+  </text>
+
+  <rect x="60" y="672" width="1160" height="36" rx="6" fill="#111a2f" stroke="#2f3b52" />
+  <text x="76" y="696" fill="#9fb2d5" font-size="16" font-family="JetBrains Mono, SFMono-Regular, Menlo, monospace">
+claude&gt; _
+  </text>
+</svg>

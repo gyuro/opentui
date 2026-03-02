@@ -41,6 +41,7 @@ public:
                                   Color background = Color::Default, bool bold = false) const;
 
   void flush();
+  void clear_screen();
 
 private:
   [[nodiscard]] static bool enable_virtual_terminal();
