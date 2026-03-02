@@ -17,17 +17,23 @@ namespace {
 
 void redraw(std::string_view prompt, std::string_view buffer, std::string_view autosuggestion = {},
             std::string_view completion_line = {}) {
-  std::cout << '\r' << prompt << buffer;
+  const auto draw_input_line = [&]() {
+    std::cout << '\r' << prompt << buffer;
 
-  if (!autosuggestion.empty() && autosuggestion.size() > buffer.size() &&
-      autosuggestion.starts_with(buffer)) {
-    const std::string_view suffix = autosuggestion.substr(buffer.size());
-    std::cout << "\033[90m" << suffix << "\033[0m";
-    std::cout << "\033[" << suffix.size() << "D";
-  }
+    if (!autosuggestion.empty() && autosuggestion.size() > buffer.size() &&
+        autosuggestion.starts_with(buffer)) {
+      const std::string_view suffix = autosuggestion.substr(buffer.size());
+      std::cout << "\033[90m" << suffix << "\033[0m";
+      std::cout << "\033[" << suffix.size() << "D";
+    }
 
-  std::cout << "\033[K";
-  std::cout << "\033[s\n" << completion_line << "\033[K\033[u";
+    std::cout << "\033[K";
+  };
+
+  draw_input_line();
+  std::cout << '\n' << completion_line << "\033[K";
+  std::cout << "\033[1A";
+  draw_input_line();
   std::cout << std::flush;
 }
 
