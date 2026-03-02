@@ -7,7 +7,7 @@
 - Overridable banner and prompt through inheritance.
 - Built-in commands: `help`, `/help`, `clear`, `/clear`, `exit`, `/exit`, `quit`, `/quit`.
 - Simple command registration API with argument handlers.
-- Interactive tab completion for commands and custom sub-arguments.
+- Interactive tab completion for commands and custom sub-arguments (including common-prefix expansion).
 - Interactive command history navigation (`↑`/`↓`) in TTY mode.
 - Fine-grained colored output (ANSI, with Windows virtual terminal support).
 - Signal-aware run loop for clean termination (`SIGINT`, `SIGTERM`, `SIGHUP` on POSIX).
@@ -21,6 +21,7 @@ A new demo app was added to showcase a Claude Code-like terminal flow:
 
 - shell chrome/status strip (`/status`)
 - slash commands (`/model`, `/theme`, `/attach`, `/files`, `/focus`, `/plan`)
+- argument autocomplete (model/theme/focus/plan/run starters + filesystem path completion for `/attach`)
 - assistant-style message command (`ask`)
 - tool run simulation command (`run`)
 - built-in clear behavior (`/clear`)

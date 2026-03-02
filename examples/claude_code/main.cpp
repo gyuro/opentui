@@ -1,8 +1,11 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <cstdlib>
+#include <filesystem>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <utility>
 #include <vector>
 
@@ -53,6 +56,93 @@ constexpr std::size_t kPanelWidth = 92;
   return std::max(minimum, estimated);
 }
 
+template <std::size_t N>
+[[nodiscard]] std::vector<std::string>
+prefix_filter(const std::string_view partial, const std::array<std::string_view, N>& candidates) {
+  std::vector<std::string> results;
+  for (const std::string_view candidate : candidates) {
+    if (partial.empty() || candidate.starts_with(partial)) {
+      results.emplace_back(candidate);
+    }
+  }
+  return results;
+}
+
+[[nodiscard]] std::vector<std::string> complete_path_argument(const std::string_view partial) {
+  namespace fs = std::filesystem;
+
+  std::string input{partial};
+  if (input == "~") {
+    input = "~/";
+  }
+
+  std::string display_base;
+  std::string leaf_prefix;
+
+  const auto split_input = [&](const std::string& text) {
+    if (!text.empty() && (text.back() == '/' || text.back() == '\\')) {
+      display_base = text;
+      leaf_prefix.clear();
+      return;
+    }
+
+    const std::size_t separator_pos = text.find_last_of("/\\");
+    if (separator_pos == std::string::npos) {
+      display_base.clear();
+      leaf_prefix = text;
+      return;
+    }
+
+    display_base = text.substr(0, separator_pos + 1U);
+    leaf_prefix = text.substr(separator_pos + 1U);
+  };
+
+  split_input(input);
+
+  fs::path resolved_directory{"."};
+  if (display_base.rfind("~/", 0U) == 0U) {
+    const char* home = std::getenv("HOME");
+    if (home == nullptr) {
+      return {};
+    }
+    resolved_directory = fs::path(home) / display_base.substr(2U);
+  } else if (!display_base.empty()) {
+    resolved_directory = fs::path(display_base);
+  }
+
+  std::error_code error;
+  if (!fs::exists(resolved_directory, error) || !fs::is_directory(resolved_directory, error)) {
+    return {};
+  }
+
+  std::vector<std::string> suggestions;
+  for (const fs::directory_entry& entry : fs::directory_iterator(
+           resolved_directory, fs::directory_options::skip_permission_denied, error)) {
+    if (error) {
+      break;
+    }
+
+    const std::string file_name = entry.path().filename().string();
+    if (!leaf_prefix.empty() && !std::string_view{file_name}.starts_with(leaf_prefix)) {
+      continue;
+    }
+
+    std::error_code type_error;
+    const bool is_directory = entry.is_directory(type_error);
+
+    std::string suggestion = display_base + file_name;
+    if (!type_error && is_directory) {
+      suggestion.push_back('/');
+    }
+    suggestions.push_back(std::move(suggestion));
+  }
+
+  std::ranges::sort(suggestions);
+  const auto unique_result = std::ranges::unique(suggestions);
+  suggestions.erase(unique_result.begin(), suggestions.end());
+  return suggestions;
+}
+
 class ClaudeCodeStyleDemo final : public opentui::TuiApplication {
 protected:
   [[nodiscard]] std::string banner() const override {
@@ -65,7 +155,8 @@ protected:
 
   void on_start(opentui::Console& console) override {
     render_shell_chrome(console);
-    console.println_color("Tip: /help, /status, /model, /attach, /files, /plan, ask, run, /clear",
+    console.println_color("Tip: /help, /status, /model, /attach, /files, /plan, ask, run, /clear "
+                          "(Tab=autocomplete, Up/Down=history)",
                           opentui::Color::BrightBlack);
   }
 
@@ -118,14 +209,7 @@ protected:
 
               constexpr std::array<std::string_view, 4> model_candidates{
                   "claude-haiku-3.5", "claude-sonnet-4.5", "claude-opus-4", "gpt-5-codex"};
-
-              std::vector<std::string> results;
-              for (const std::string_view model_name : model_candidates) {
-                if (partial.empty() || model_name.starts_with(partial)) {
-                  results.emplace_back(model_name);
-                }
-              }
-              return results;
+              return prefix_filter(partial, model_candidates);
             },
     });
 
@@ -164,13 +248,7 @@ protected:
               }
 
               constexpr std::array<std::string_view, 3> theme_candidates{"dark", "dusk", "light"};
-              std::vector<std::string> results;
-              for (const std::string_view candidate : theme_candidates) {
-                if (partial.empty() || candidate.starts_with(partial)) {
-                  results.emplace_back(candidate);
-                }
-              }
-              return results;
+              return prefix_filter(partial, theme_candidates);
             },
     });
 
@@ -195,7 +273,13 @@ protected:
               attached_files_.push_back(path);
               console().println_color("Attached: " + path, opentui::Color::BrightGreen);
             },
-        .completer = nullptr,
+        .completer =
+            [](const std::string_view partial, const opentui::Args& args) {
+              if (!args.empty()) {
+                return std::vector<std::string>{};
+              }
+              return complete_path_argument(partial);
+            },
     });
 
     register_command(opentui::Command{
@@ -235,7 +319,16 @@ protected:
               focus_ = join_args(args);
               console().println_color("Focus set to: " + focus_, opentui::Color::BrightGreen);
             },
-        .completer = nullptr,
+        .completer =
+            [](const std::string_view partial, const opentui::Args& args) {
+              if (!args.empty()) {
+                return std::vector<std::string>{};
+              }
+
+              constexpr std::array<std::string_view, 7> focus_candidates{
+                  "code", "tests", "ci", "docs", "performance", "refactor", "release"};
+              return prefix_filter(partial, focus_candidates);
+            },
     });
 
     register_command(opentui::Command{
@@ -258,7 +351,17 @@ protected:
               console().println("  2) Apply smallest safe edits with quick verification.");
               console().println("  3) Summarize changes + next optional refinements.");
             },
-        .completer = nullptr,
+        .completer =
+            [](const std::string_view partial, const opentui::Args& args) {
+              if (!args.empty()) {
+                return std::vector<std::string>{};
+              }
+
+              constexpr std::array<std::string_view, 7> plan_candidates{
+                  "implement",    "refactor", "debug", "benchmark",
+                  "stabilize-ci", "document", "ship"};
+              return prefix_filter(partial, plan_candidates);
+            },
     });
 
     register_command(opentui::Command{
@@ -283,7 +386,16 @@ protected:
               console().println("  - I will keep the scope tight and preserve existing behavior.");
               console().println("  - After patching, I will run a focused verification step.");
             },
-        .completer = nullptr,
+        .completer =
+            [](const std::string_view partial, const opentui::Args& args) {
+              if (!args.empty()) {
+                return std::vector<std::string>{};
+              }
+
+              constexpr std::array<std::string_view, 4> ask_starters{"can you", "please",
+                                                                     "how do I", "why did"};
+              return prefix_filter(partial, ask_starters);
+            },
     });
 
     register_command(opentui::Command{
@@ -304,7 +416,22 @@ protected:
               console().println_color("tool > " + command, opentui::Color::BrightBlue);
               console().println_color("result > success (simulated)", opentui::Color::BrightGreen);
             },
-        .completer = nullptr,
+        .completer =
+            [](const std::string_view partial, const opentui::Args& args) {
+              if (!args.empty()) {
+                return std::vector<std::string>{};
+              }
+
+              constexpr std::array<std::string_view, 7> run_candidates{
+                  "cmake -S . -B build",
+                  "cmake --build build",
+                  "ctest --test-dir build",
+                  "git status",
+                  "git diff",
+                  "./scripts/tasks.sh all",
+                  "./scripts/tasks.sh run-claude-example"};
+              return prefix_filter(partial, run_candidates);
+            },
     });
   }
 

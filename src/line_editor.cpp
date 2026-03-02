@@ -26,6 +26,29 @@ void print_candidates(const std::vector<std::string>& candidates) {
   std::cout << '\n';
 }
 
+[[nodiscard]] std::string longest_common_prefix(const std::vector<std::string>& values) {
+  if (values.empty()) {
+    return {};
+  }
+
+  std::string prefix = values.front();
+  for (std::size_t index = 1; index < values.size(); ++index) {
+    const std::string& candidate = values[index];
+    std::size_t shared = 0;
+    while (shared < prefix.size() && shared < candidate.size() &&
+           prefix[shared] == candidate[shared]) {
+      ++shared;
+    }
+
+    prefix.resize(shared);
+    if (prefix.empty()) {
+      break;
+    }
+  }
+
+  return prefix;
+}
+
 #if !defined(_WIN32)
 class RawModeGuard {
 public:
@@ -167,6 +190,15 @@ std::optional<std::string> LineEditor::read_line(std::string_view prompt,
         continue;
       }
 
+      const std::string common_prefix = longest_common_prefix(candidates);
+      if (common_prefix.size() > buffer.size()) {
+        buffer = common_prefix;
+        history_index = history_.size();
+        draft_buffer = buffer;
+        redraw(prompt, buffer);
+        continue;
+      }
+
       if (candidates.size() == 1U) {
         buffer = candidates.front();
         history_index = history_.size();
@@ -245,6 +277,15 @@ std::optional<std::string> LineEditor::read_line(std::string_view prompt,
       const auto candidates = completion_provider(buffer);
       if (candidates.empty()) {
         std::cout << '\a' << std::flush;
+        continue;
+      }
+
+      const std::string common_prefix = longest_common_prefix(candidates);
+      if (common_prefix.size() > buffer.size()) {
+        buffer = common_prefix;
+        history_index = history_.size();
+        draft_buffer = buffer;
+        redraw(prompt, buffer);
         continue;
       }
 
