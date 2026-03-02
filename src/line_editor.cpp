@@ -14,8 +14,18 @@
 namespace opentui {
 namespace {
 
-void redraw(std::string_view prompt, std::string_view buffer) {
-  std::cout << '\r' << prompt << buffer << "\033[K" << std::flush;
+void redraw(std::string_view prompt, std::string_view buffer,
+            std::string_view autosuggestion = {}) {
+  std::cout << '\r' << prompt << buffer;
+
+  if (!autosuggestion.empty() && autosuggestion.size() > buffer.size() &&
+      autosuggestion.starts_with(buffer)) {
+    const std::string_view suffix = autosuggestion.substr(buffer.size());
+    std::cout << "\033[90m" << suffix << "\033[0m";
+    std::cout << "\033[" << suffix.size() << "D";
+  }
+
+  std::cout << "\033[K" << std::flush;
 }
 
 void print_candidates(const std::vector<std::string>& candidates) {
@@ -47,6 +57,29 @@ void print_candidates(const std::vector<std::string>& candidates) {
   }
 
   return prefix;
+}
+
+[[nodiscard]] std::string
+autosuggestion_for(const std::string_view buffer, const std::vector<std::string>& history,
+                   const LineEditor::CompletionProvider& completion_provider) {
+  if (buffer.empty()) {
+    return {};
+  }
+
+  const auto completion_candidates = completion_provider(buffer);
+  for (const auto& candidate : completion_candidates) {
+    if (candidate.size() > buffer.size() && std::string_view{candidate}.starts_with(buffer)) {
+      return candidate;
+    }
+  }
+
+  for (auto iterator = history.rbegin(); iterator != history.rend(); ++iterator) {
+    if (iterator->size() > buffer.size() && std::string_view{*iterator}.starts_with(buffer)) {
+      return *iterator;
+    }
+  }
+
+  return {};
 }
 
 #if !defined(_WIN32)
@@ -120,7 +153,12 @@ std::optional<std::string> LineEditor::read_line(std::string_view prompt,
   std::string draft_buffer;
   std::size_t history_index = history_.size();
 
-  const auto move_history_up = [this, &buffer, &draft_buffer, &history_index, prompt]() {
+  const auto redraw_with_autosuggestion = [this, &buffer, &completion_provider, prompt]() {
+    redraw(prompt, buffer, autosuggestion_for(buffer, history_, completion_provider));
+  };
+
+  const auto move_history_up = [this, &buffer, &draft_buffer, &history_index,
+                                &redraw_with_autosuggestion]() {
     if (history_.empty()) {
       return false;
     }
@@ -135,11 +173,12 @@ std::optional<std::string> LineEditor::read_line(std::string_view prompt,
 
     --history_index;
     buffer = history_[history_index];
-    redraw(prompt, buffer);
+    redraw_with_autosuggestion();
     return true;
   };
 
-  const auto move_history_down = [this, &buffer, &draft_buffer, &history_index, prompt]() {
+  const auto move_history_down = [this, &buffer, &draft_buffer, &history_index,
+                                  &redraw_with_autosuggestion]() {
     if (history_.empty() || history_index == history_.size()) {
       return false;
     }
@@ -151,7 +190,22 @@ std::optional<std::string> LineEditor::read_line(std::string_view prompt,
       buffer = history_[history_index];
     }
 
-    redraw(prompt, buffer);
+    redraw_with_autosuggestion();
+    return true;
+  };
+
+  const auto accept_autosuggestion = [this, &buffer, &history_index, &draft_buffer,
+                                      &completion_provider, &redraw_with_autosuggestion]() {
+    const std::string suggestion = autosuggestion_for(buffer, history_, completion_provider);
+    if (suggestion.empty() || suggestion.size() <= buffer.size() ||
+        !std::string_view{suggestion}.starts_with(buffer)) {
+      return false;
+    }
+
+    buffer = suggestion;
+    history_index = history_.size();
+    draft_buffer = buffer;
+    redraw_with_autosuggestion();
     return true;
   };
 
@@ -178,7 +232,7 @@ std::optional<std::string> LineEditor::read_line(std::string_view prompt,
         buffer.pop_back();
         history_index = history_.size();
         draft_buffer = buffer;
-        redraw(prompt, buffer);
+        redraw_with_autosuggestion();
       }
       continue;
     }
@@ -195,7 +249,7 @@ std::optional<std::string> LineEditor::read_line(std::string_view prompt,
         buffer = common_prefix;
         history_index = history_.size();
         draft_buffer = buffer;
-        redraw(prompt, buffer);
+        redraw_with_autosuggestion();
         continue;
       }
 
@@ -203,12 +257,12 @@ std::optional<std::string> LineEditor::read_line(std::string_view prompt,
         buffer = candidates.front();
         history_index = history_.size();
         draft_buffer = buffer;
-        redraw(prompt, buffer);
+        redraw_with_autosuggestion();
         continue;
       }
 
       print_candidates(candidates);
-      redraw(prompt, buffer);
+      redraw_with_autosuggestion();
       continue;
     }
 
@@ -227,6 +281,14 @@ std::optional<std::string> LineEditor::read_line(std::string_view prompt,
         }
         continue;
       }
+
+      if (special_key == 77) {
+        if (!accept_autosuggestion()) {
+          std::cout << '\a' << std::flush;
+        }
+        continue;
+      }
+
       continue;
     }
 
@@ -234,7 +296,7 @@ std::optional<std::string> LineEditor::read_line(std::string_view prompt,
       buffer.push_back(static_cast<char>(key));
       history_index = history_.size();
       draft_buffer = buffer;
-      redraw(prompt, buffer);
+      redraw_with_autosuggestion();
     }
   }
 #else
@@ -268,7 +330,7 @@ std::optional<std::string> LineEditor::read_line(std::string_view prompt,
         buffer.pop_back();
         history_index = history_.size();
         draft_buffer = buffer;
-        redraw(prompt, buffer);
+        redraw_with_autosuggestion();
       }
       continue;
     }
@@ -285,7 +347,7 @@ std::optional<std::string> LineEditor::read_line(std::string_view prompt,
         buffer = common_prefix;
         history_index = history_.size();
         draft_buffer = buffer;
-        redraw(prompt, buffer);
+        redraw_with_autosuggestion();
         continue;
       }
 
@@ -293,12 +355,12 @@ std::optional<std::string> LineEditor::read_line(std::string_view prompt,
         buffer = candidates.front();
         history_index = history_.size();
         draft_buffer = buffer;
-        redraw(prompt, buffer);
+        redraw_with_autosuggestion();
         continue;
       }
 
       print_candidates(candidates);
-      redraw(prompt, buffer);
+      redraw_with_autosuggestion();
       continue;
     }
 
@@ -327,6 +389,13 @@ std::optional<std::string> LineEditor::read_line(std::string_view prompt,
         continue;
       }
 
+      if (arrow == 'C') {
+        if (!accept_autosuggestion()) {
+          std::cout << '\a' << std::flush;
+        }
+        continue;
+      }
+
       continue;
     }
 
@@ -334,7 +403,7 @@ std::optional<std::string> LineEditor::read_line(std::string_view prompt,
       buffer.push_back(key);
       history_index = history_.size();
       draft_buffer = buffer;
-      redraw(prompt, buffer);
+      redraw_with_autosuggestion();
     }
   }
 #endif

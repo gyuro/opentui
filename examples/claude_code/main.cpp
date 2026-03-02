@@ -156,7 +156,7 @@ protected:
   void on_start(opentui::Console& console) override {
     render_shell_chrome(console);
     console.println_color("Tip: /help, /status, /model, /attach, /files, /plan, ask, run, /clear "
-                          "(Tab=autocomplete, Up/Down=history)",
+                          "(Tab=autocomplete, Right=accept autosuggest, Up/Down=history)",
                           opentui::Color::BrightBlack);
   }
 

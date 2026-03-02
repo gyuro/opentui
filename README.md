@@ -8,6 +8,7 @@
 - Built-in commands: `help`, `/help`, `clear`, `/clear`, `exit`, `/exit`, `quit`, `/quit`.
 - Simple command registration API with argument handlers.
 - Interactive tab completion for commands and custom sub-arguments (including common-prefix expansion).
+- Inline autosuggestions (dim ghost text from completion/history), accepted with Right Arrow.
 - Interactive command history navigation (`↑`/`↓`) in TTY mode.
 - Fine-grained colored output (ANSI, with Windows virtual terminal support).
 - Signal-aware run loop for clean termination (`SIGINT`, `SIGTERM`, `SIGHUP` on POSIX).
